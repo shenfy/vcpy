@@ -1,0 +1,6 @@
+[gerrit]
+host=52.80.6.125
+port=29418
+project=vcpy.git
+defaultbranch=master
+
