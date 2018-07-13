@@ -1,6 +1,6 @@
 from pylab import *
-from quat import *
-import m3d
+from .quat import *
+from . import m3d
 
 class Rbt():
   def __init__(self, t, r):
