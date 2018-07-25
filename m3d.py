@@ -38,7 +38,7 @@ def gl_lookat(origin, target, up):
     u = cross(s, f)
     M = identity(4)
     M[:3,:3] = np.vstack([s,u,-f])
-    T = translate(-origin)
+    T = translate(-origin[:3])
     return dot(M, T)
 
 @jit
