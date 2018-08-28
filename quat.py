@@ -13,36 +13,36 @@ class Quat:
   def set_axis(self, axis):
     self.v[1:] = axis
 
-  @staticmethod
-  def x_rotation(angle):
+  @classmethod
+  def x_rotation(cls, angle):
     return Quat(array([cos(angle / 2), sin(angle / 2), 0, 0]))
 
-  @staticmethod
-  def y_rotation(angle):
+  @classmethod
+  def y_rotation(cls, angle):
     return Quat(array([cos(angle / 2), 0, sin(angle / 2), 0]))
 
-  @staticmethod
-  def z_rotation(angle):
+  @classmethod
+  def z_rotation(cls, angle):
     return Quat(array([cos(angle / 2), 0, 0, sin(angle / 2)]))
 
-  @staticmethod
-  def scaled(q, s):
+  @classmethod
+  def scaled(cls, q, s):
     return Quat(q.v * s)
 
-  @staticmethod
-  def inv(q):
+  @classmethod
+  def inv(cls, q):
     n = dot(q.v, q.v)
     result = Quat()
     result.set(q.v[0], -q.v[1], -q.v[2], -q.v[3])
     result.scale(1.0 / n)
     return result
 
-  @staticmethod
-  def dot(q0, q1):
+  @classmethod
+  def dot(cls, q0, q1):
     return dot(q0.v, q1.v)
 
-  @staticmethod
-  def normalize(q):
+  @classmethod
+  def normalize(cls, q):
     return Quat(q.v / sqrt(dot(q.v, q.v)))
 
   def __str__(self):
@@ -91,8 +91,8 @@ class Quat:
     r[2, 2] -= (q.v[1] * q.v[1] + q.v[2] * q.v[2]) * two_over_n;
     return r
 
-  @staticmethod
-  def from_mat(m):
+  @classmethod
+  def from_mat(cls, m):
     four_x2_minus_1 = m[0, 0] - m[1, 1] - m[2, 2];
     four_y2_minus_1 = m[1, 1] - m[0, 0] - m[2, 2];
     four_z2_minus_1 = m[2, 2] - m[0, 0] - m[1, 1];

@@ -33,8 +33,8 @@ class Rbt():
   def apply(self, pos):
     return m3d.v3v4(self.t, 0) * pos[3] + self.r.apply(pos)
 
-  @staticmethod
-  def inv(rbt):
+  @classmethod
+  def inv(cls, rbt):
     r_inv = Quat.inv(rbt.r)
     return Rbt(r_inv.apply(m3d.v3v4(-rbt.t, 1.0))[:3], r_inv)
 
@@ -43,12 +43,12 @@ class Rbt():
     m[:3, 3] = self.t
     return m
 
-  @staticmethod
-  def do_m_2_o_wrt_a(m, o, a):
+  @classmethod
+  def do_m_2_o_wrt_a(cls, m, o, a):
     return a * m * Rbt.inv(a) * o
 
-  @staticmethod
-  def look_at(eye, target, up):
+  @classmethod
+  def look_at(cls, eye, target, up):
     m = m3d.gl_lookat(eye, target, up)
     r = Quat.from_mat(m)
     return Rbt(eye, r)

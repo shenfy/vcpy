@@ -9,7 +9,7 @@ def RGB2XYZ(rgbs):  # size of [3, n]
 
 def XYZ2xyY(XYZs):  # size of [3, n]
     Ys = XYZs[1, :]
-    s = sum(XYZs, 0)
+    s = np.maximum(sum(XYZs, 0), 1e-3)
     return np.vstack([(XYZs / s)[:2, :], Ys])
 
 def xyY2XYZ(xyYs):  # size of [3, n]
