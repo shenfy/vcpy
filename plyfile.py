@@ -1,22 +1,36 @@
 import numpy as np
 
 def load_ply(filename):
-    with open(filename) as f:
-        for line in f:
-            if line.startswith('element vertex'):
+    with open(filename, 'rb') as f:
+        binary = True
+
+        while True:
+            line = f.readline()
+            if line.startswith(b'element vertex'):
                 num_vertices = int(line[14:])
-            elif line.startswith('element face'):
+            elif line.startswith(b'element face'):
                 num_faces = int(line[12:])
-            elif line.startswith('end_header'):
-                vertices = np.zeros((num_vertices, 3), dtype=float)
-                triangles = np.zeros((num_faces, 3), dtype=int)
+            elif line.startswith(b'format'):
+                binary = not line.startswith(b'format ascii')
+            elif line.startswith(b'end_header'):
                 break
+
+        vertices = np.zeros((num_vertices, 3), dtype=np.float32)
+        triangles = np.zeros((num_faces, 3), dtype=np.int32)
         for i in range(num_vertices):
-            vertices[i, :] = [float(num) for num in next(f).split()][:3]
+            if binary:
+                vertices[i, :] = np.fromfile(f, np.float32, 3)
+            else:
+                vertices[i, :] = [np.float32(num) for num in f.readline().split()[:3]]
         for i in range(num_faces):
-            nums = [int(num) for num in next(f).split()]
-            assert nums[0] == 3
-            triangles[i, :] = nums[1:4]
+            if binary:
+                num = np.fromfile(f, np.uint8, 1)
+                assert num[0] == 3
+                triangles[i, :] = np.fromfile(f, np.int32, 3)
+            else:
+                nums = [np.int32(num) for num in f.readline().split()]
+                assert nums[0] == 3
+                triangles[i, :] = nums[1:4]
     return vertices, triangles
 
 def write_ply(pts, simplices, filename):
