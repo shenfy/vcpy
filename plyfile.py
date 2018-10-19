@@ -40,14 +40,16 @@ def write_ply(pts, simplices, filename):
     outfile.write('property float x\n')
     outfile.write('property float y\n')
     outfile.write('property float z\n')
-    outfile.write('element face %d\n' % (simplices.shape[0]))
-    outfile.write('property list uchar int vertex_indices\n')
+    if simplices is not None:
+        outfile.write('element face %d\n' % (simplices.shape[0]))
+        outfile.write('property list uchar int vertex_indices\n')
     outfile.write('end_header\n')
 
     for vertex in pts:
         outfile.write('%f %f %f\n' % (vertex[0], vertex[1], vertex[2]))
 
-    for face in simplices:
-        outfile.write('3 %d %d %d\n' % (face[0], face[1], face[2]))
+    if simplices is not None:
+        for face in simplices:
+            outfile.write('3 %d %d %d\n' % (face[0], face[1], face[2]))
 
     outfile.close()
