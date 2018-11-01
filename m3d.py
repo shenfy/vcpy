@@ -99,6 +99,14 @@ def gl_viewport(width, height):
 def v3v4(v3, w):
     return array([v3[0], v3[1], v3[2], w])
 
+def rotation_from_normal(z):
+    x = np.array([1, 0, 0])
+    if np.dot(x, z) > 0.8:
+        x = np.array([0, 1, 0])
+    y = np.cross(z, x)
+    y /= np.linalg.norm(y)
+    x = np.cross(y, z)
+    return np.column_stack([x, y, z])
 
 if __name__ == '__main__':
     pass
