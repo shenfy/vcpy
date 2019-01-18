@@ -18,15 +18,21 @@ class View:
     view_point = self.pose.world2view(p)
     return self.intrinsics.project(view_point, distort)
 
-# only support pinhole_radial_k3
+# support pinhole_radial_k3, pinhole_radial_k1, partly support pinhole_radial_k1_pba
 class Intrinsics:
+  NoDistortion = 0
+  DistortionRadial3 = 1
+  DistortionRadial1 = 2
+  DistortionRadial1_PBA = 6
+
   def __init__(self):
     self.width = 0
     self.height = 0
     self.f = 0
     self.cx = 0
     self.cy = 0
-    self.distortions = [0, 0, 0]
+    self.distortion_type = Intrinsics.NoDistortion
+    self.distortions = []
 
   @property
   def K(self):
@@ -52,11 +58,20 @@ class Intrinsics:
     return p
 
   def add_disto(self, p):
-    r2 =  np.dot(p, p)
-    r4 = r2 * r2
-    r6 = r4 * r2
-    coeff = (1 + self.distortions[0] * r2 + self.distortions[1] * r4 + self.distortions[2] * r6)
-    return p * coeff
+    if self.distortion_type == Intrinsics.NoDistortion:
+      return p
+    elif self.distortion_type == Intrinsics.DistortionRadial3:
+      r2 =  np.dot(p, p)
+      r4 = r2 * r2
+      r6 = r4 * r2
+      coeff = (1 + self.distortions[0] * r2 + self.distortions[1] * r4 + self.distortions[2] * r6)
+      return p * coeff
+    elif self.distortion_type == Intrinsics.DistortionRadial1:
+      r2 = np.dot(p, p)
+      coeff = (1 + self.distortions[0] * r2)
+      return p * coeff
+    else:
+      raise RuntimeError("Unknow distortion type {}".format(self.distortion_type))
 
   def cam2ima(self, p):
     return self.f * p + np.array([self.cx, self.cy], dtype=p.dtype)
@@ -175,7 +190,15 @@ def _parse_intrinsics(intrinsics):
     principal_point = data['principal_point']
     intrin.cx = principal_point[0]
     intrin.cy = principal_point[1]
-    intrin.distortions = data['disto_k3']
+    if 'disto_k3' in data:
+      intrin.distortion_type = Intrinsics.DistortionRadial3
+      intrin.distortions = data['disto_k3']
+    elif 'disto_k1' in data:
+      intrin.distortion_type = Intrinsics.DistortionRadial1
+      intrin.distortions = data['disto_k1']
+    elif 'disto_k1_pba' in data:
+      intrin.distortion_type = Intrinsics.DistortionRadial1_PBA
+      intrin.distortions = data['disto_k1_pba']
     result[key] = intrin
   return result
 
