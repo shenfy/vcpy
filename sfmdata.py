@@ -15,7 +15,7 @@ class View:
   def project(self, p, distort=True):
     if self.intrinsics is None or self.pose is None:
       return None
-    view_point = self.pose.world2view(p)
+    view_point = self.pose.world_2_view(p)
     return self.intrinsics.project(view_point, distort)
 
 # support pinhole_radial_k3, pinhole_radial_k1, partly support pinhole_radial_k1_pba
@@ -50,44 +50,54 @@ class Intrinsics:
     result = gl_frustum(left * z_near, right * z_near, bottom * z_near, top * z_near, z_near, z_far)
     return result
 
-  def project(self, p, distort):
-    p = (p / p[-1])[:-1]
+  # pts: array of [3, n]
+  def project(self, pts, distort):
+    pts_2d = pts[:2, :] / pts[2, :]
     if distort:
-      p = self.add_disto(p)
-    p = self.cam2ima(p)
-    return p
+      pts_2d = self.add_disto(pts_2d)
+    pts_2d = self.cam_2_img(pts_2d)
+    return pts_2d
 
-  def add_disto(self, p):
+  # pts: array of [2, n]
+  def add_disto(self, pts):
     if self.distortion_type == Intrinsics.NoDistortion:
-      return p
+      return pts
     elif self.distortion_type == Intrinsics.DistortionRadial3:
-      r2 =  np.dot(p, p)
+      r2 = np.sum(pts * pts, 0)
       r4 = r2 * r2
       r6 = r4 * r2
-      coeff = (1 + self.distortions[0] * r2 + self.distortions[1] * r4 + self.distortions[2] * r6)
-      return p * coeff
+      coeff = r2 * self.distortions[0] + r4 * self.distortions[1] + r6 * self.distortions[2] + 1.0
+      return pts * coeff
     elif self.distortion_type == Intrinsics.DistortionRadial1:
-      r2 = np.dot(p, p)
-      coeff = (1 + self.distortions[0] * r2)
-      return p * coeff
+      r2 = np.sum(pts * pts, 0)
+      coeff = r2 * self.distortions[0] + 1.0
+      return pts * coeff
     else:
-      raise RuntimeError("Unknow distortion type {}".format(self.distortion_type))
+      raise RuntimeError('Distortion type {} unsupported'.format(self.distortion_type))
 
-  def cam2ima(self, p):
-    return self.f * p + np.array([self.cx, self.cy], dtype=p.dtype)
+  # pts: array of [2, n]
+  def cam_2_img(self, p):
+    return (self.f * p.T + np.array([self.cx, self.cy], dtype=p.dtype)).T
 
 class Extrinsic:
   def __init__(self):
     self.camera_frame = np.identity(4, dtype=float)
 
-  def world2view(self, p):
-    return self.camera_frame[:3, :3].T @ (p - self.camera_frame[:3, 3])
+  # pts: array of size [3, n]
+  def world_2_view(self, pts):
+    return self.camera_frame[:3, :3].T @ (pts.T - self.camera_frame[:3, 3]).T
 
+# Landmark stores feature points' info
+# X: 3D coords in world frame
+# observations: dict{View: Observation} for each view it is observed in
 class Landmark:
   def __init__(self):
     self.X = np.zeros(3, dtype=float)
     self.observations = {}
 
+# 2D feature info
+# id_feat: local feature index for a view
+# x: sub-pixel 2D image coords
 class Observation:
   def __init__(self):
     self.id_feat = -1
@@ -177,7 +187,7 @@ class SfMData:
     }
     json.dump(content, f, indent=4)
 
-def _parse_intrinsics(intrinsics):
+def __parse_intrinsics(intrinsics):
   result = {}
   for intrinsics_ in intrinsics:
     key = intrinsics_['key']
@@ -202,7 +212,7 @@ def _parse_intrinsics(intrinsics):
     result[key] = intrin
   return result
 
-def _parse_extrinsics(extrinsics):
+def __parse_extrinsics(extrinsics):
   result = {}
   for extrinsic in extrinsics:
     key = extrinsic['key']
@@ -213,7 +223,7 @@ def _parse_extrinsics(extrinsics):
     result[key] = extrin
   return result
 
-def _parse_views(views, intrinsics, extrinsics):
+def __parse_views(views, intrinsics, extrinsics):
   result = {}
   for view in views:
     key = view['key']
@@ -234,7 +244,7 @@ def _parse_views(views, intrinsics, extrinsics):
     result[key] = v
   return result
 
-def _parse_structure(structure, views):
+def __parse_structure(structure, views):
   result = {}
   for s in structure:
     key = s['key']
@@ -255,10 +265,10 @@ def load_sfm_data(file):
   content = json.load(file)
   result = SfMData()
   result.root_path = content['root_path']
-  result.intrinsics = _parse_intrinsics(content['intrinsics'])
-  result.extrinsics = _parse_extrinsics(content['extrinsics'])
-  result.views = _parse_views(content['views'], result.intrinsics, result.extrinsics)
-  result.structure = _parse_structure(content['structure'], result.views)
+  result.intrinsics = __parse_intrinsics(content['intrinsics'])
+  result.extrinsics = __parse_extrinsics(content['extrinsics'])
+  result.views = __parse_views(content['views'], result.intrinsics, result.extrinsics)
+  result.structure = __parse_structure(content['structure'], result.views)
 
   for landmark in result.structure.values():
     for view in landmark.observations:
