@@ -3,12 +3,8 @@ from pylab import *
 
 # 3d math helper
 @jit
-def magnitude(v):
-    return sqrt(sum(v ** 2))
-
-@jit
 def normalize(v):
-    m = magnitude(v)
+    m = linalg.norm(v)
     if m == 0:
         return v
     return v / m
