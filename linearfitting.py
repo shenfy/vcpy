@@ -91,3 +91,29 @@ def absolute_orientation(src_pts, dst_pts, scale=None):
   rotated = rotation.apply(np.array([*src_centroid, 1], dtype=src_centroid.dtype))[:3]
   translation = dst_centroid - scale * rotated
   return (translation, rotation, scale)
+
+# https://github.com/cjekel/cjekel.github.io/blob/master/assets/2015-09-13/demo.py
+# fit a sphere to given points
+# returns the radius and center points of
+# the best fit sphere
+def sphere_fit(pts):
+    #   Assemble the A matrix
+    spX = np.array(pts)[:, 0]
+    spY = np.array(pts)[:, 1]
+    spZ = np.array(pts)[:, 2]
+    A = np.zeros((len(spX),4))
+    A[:,0] = spX*2
+    A[:,1] = spY*2
+    A[:,2] = spZ*2
+    A[:,3] = 1
+
+    #   Assemble the f matrix
+    f = np.zeros((len(spX),1))
+    f[:,0] = (spX*spX) + (spY*spY) + (spZ*spZ)
+    C, residules, rank, singval = np.linalg.lstsq(A,f, rcond=None)
+
+    #   solve for the radius
+    t = (C[0]*C[0])+(C[1]*C[1])+(C[2]*C[2])+C[3]
+    radius = np.sqrt(t)
+
+    return radius, C[0], C[1], C[2]
