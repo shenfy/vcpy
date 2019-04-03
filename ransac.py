@@ -11,7 +11,7 @@ def ransac_fit(samples, min_samples, max_iterations, inlier_threshold,
   iteration = 0
   best_err = 1e32
 
-  maybe_model = None
+  result = None
 
   while iteration < max_iterations:
     
@@ -40,15 +40,12 @@ def ransac_fit(samples, min_samples, max_iterations, inlier_threshold,
       if (ss_err < best_err):
         best_err = ss_err
         result = maybe_model
-        found_model = True
-
-    # early termination
-    if found_model and early_term_func(maybe_model, best_err):
-      break
+        if early_term_func(result, best_err):
+          break
 
     iteration += 1
 
-  return maybe_model
+  return result
 
 if __name__ == '__main__':
   pass
