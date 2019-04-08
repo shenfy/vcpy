@@ -6,7 +6,6 @@ def ransac_fit(samples, min_samples, max_iterations, inlier_threshold,
   
   # samples: array of [k0, n], where n is the number of samples
   num_samples = samples.shape[-1]
-  found_model = False
 
   iteration = 0
   best_err = 1e32
