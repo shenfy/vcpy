@@ -1,5 +1,6 @@
 import sys
 import struct
+import lz4.block
 
 class PageDesc():
   kFile = 0
@@ -161,8 +162,8 @@ class PagedFile():
       if not desc.is_compressed:
         return data
       else:
-        # todo: decompress lz4
-        return None
+        uncompressed = lz4.block.decompress(data, uncompressed_size=desc.uncompressed_length)
+        return uncompressed
 
   def read_page_by_name(self, page_name):
     for page_idx, desc in self.page_table.items():
@@ -207,8 +208,6 @@ class PagedFile():
       if desc.is_compressed:
         self.__pack_write(desc.uncompressed_length, 'uint64')
 
-      # name_encoded = desc.name.encode('utf-8')
-      # name_length = len(name_encoded)
       name_length = len(desc.name)
       self.__pack_write(name_length, 'uint16')
       if name_length > 0:
@@ -220,27 +219,38 @@ class PagedFile():
     return True
 
   def add_page(self, idx, name, chunk, compress=False):
-    if self.disk_file is None:
+    if (self.disk_file is None) or (self.mode != 'w'):
       return False
 
     if compress:
-      raise 'Not Implemented!'
+      compressed = lz4.block.compress(chunk, store_size=False)
+      compressed_length = len(compressed)
+      print(compressed, compressed_length, len(chunk))
 
     # add desc
     desc = PageDesc()
-    desc.format = PageDesc.kPlain | PageDesc.kFile
     desc.start = self.tail_pos
-    desc.length = len(chunk)
     desc.is_compressed = compress
-    desc.uncompressed_length = 0
     desc.name = name
+    if compress:
+      desc.format = PageDesc.kLZ4 | PageDesc.kFile
+      desc.length = compressed_length
+      desc.uncompressed_length = len(chunk)
+    else:
+      desc.format = PageDesc.kPlain | PageDesc.kFile
+      desc.length = len(chunk)
+      desc.uncompressed_length = 0
+
     self.page_table[idx] = desc
     self.num_pages = len(self.page_table)
     self.page_order.append(idx)
 
     # write data to file
     self.disk_file.seek(self.tail_pos, 0)
-    self.disk_file.write(chunk)
+    if compress:
+      self.disk_file.write(compressed)
+    else:
+      self.disk_file.write(chunk)
     self.tail_pos = self.disk_file.tell()
 
     return True
@@ -248,17 +258,17 @@ class PagedFile():
 if __name__ == '__main__':
   pass
 
+  # # WRITE EXAMPLE
+  # paged_file = PagedFile()
+  # paged_file.create('test.pf')
+  # paged_file.add_page(0, 'a.txt', 'hello python!'.encode('utf-8'), True)
+  # paged_file.add_page(1, 'b.txt', 'bonjour paged file.'.encode('utf-8'), True)
+  # paged_file.close()
+
   # # READ EXAMPLE
   # paged_file = PagedFile()
   # paged_file.load('test.pf')
   # paged_file.print_page_table()
-  # data = paged_file.read_page(0)
-  # print(data)
-  # paged_file.close()
-
-  # # WRITE EXAMPLE
-  # paged_file = PagedFile()
-  # paged_file.create('test.pf')
-  # paged_file.add_page(0, 'a.txt', 'hello python!'.encode('utf-8'))
-  # paged_file.add_page(1, 'b.txt', 'bonjour paged file.'.encode('utf-8'))
+  # data = paged_file.read_page(1)
+  # print(data.decode('utf-8'))
   # paged_file.close()
