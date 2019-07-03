@@ -164,11 +164,13 @@ class PagedFile():
       else:
         uncompressed = lz4.block.decompress(data, uncompressed_size=desc.uncompressed_length)
         return uncompressed
+    return None
 
   def read_page_by_name(self, page_name):
     for page_idx, desc in self.page_table.items():
       if desc.name == page_name:
         return self.read_page(page_idx)
+    return None
 
   def print_page_table(self):
     if self.page_table is not None:

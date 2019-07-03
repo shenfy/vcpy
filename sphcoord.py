@@ -39,5 +39,20 @@ def sph2cart(sph):
     z = r * np.sin(el)
     return np.array([x, y, z])
 
+def cart2sph_v(pts_3d):
+  hxy = np.hypot(pts_3d[:, 0], pts_3d[:, 1])
+  r = np.hypot(hxy, pts_3d[:, 2])
+  el = np.arctan2(pts_3d[:, 2], hxy)
+  az = np.arctan2(pts_3d[:, 1], pts_3d[:, 0])
+  return np.vstack((el, az, r)).T
+
+def sph2cart_v(pts_sph):
+  r_cos_el = pts_sph[:, 2] * np.cos(pts_sph[:, 0])
+  x = r_cos_el * np.cos(pts_sph[:, 1])
+  y = r_cos_el * np.sin(pts_sph[:, 1])
+  z = pts_sph[:, 2] * np.sin(pts_sph[:, 0])
+  return np.vstack((x, y, z)).T
+
+
 if __name__ == '__main__':
     pass
