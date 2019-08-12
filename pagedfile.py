@@ -1,6 +1,7 @@
 import sys
 import struct
 import lz4.block
+import lz4.frame
 
 class PageDesc():
   kFile = 0
@@ -8,7 +9,10 @@ class PageDesc():
   kSymLink = 2
   kHardLink = 3
   kPlain = 0
-  kLZ4 = 1 << 8
+  kLZ4Block = 1 << 8
+  kLZ4Frame = 2 << 8
+
+  kLZ4BlockMaxInputSize = 0x7E000000 # copied from lz4.h
 
   def __init__(self):
     self.format = 0
@@ -161,8 +165,11 @@ class PagedFile():
       data = self.disk_file.read(desc.length)
       if not desc.is_compressed:
         return data
-      else:
+      elif desc.format & PageDesc.kLZ4Block:
         uncompressed = lz4.block.decompress(data, uncompressed_size=desc.uncompressed_length)
+        return uncompressed
+      elif desc.format & PageDesc.kLZ4Frame:
+        uncompressed = lz4.frame.decompress(data)
         return uncompressed
     return None
 
@@ -225,7 +232,12 @@ class PagedFile():
       return False
 
     if compress:
-      compressed = lz4.block.compress(chunk, store_size=False)
+      if len(chunk) <= PageDesc.kLZ4BlockMaxInputSize:
+        compression_format = PageDesc.kLZ4Block
+        compressed = lz4.block.compress(chunk, store_size=False)
+      else:
+        compression_format = PageDesc.kLZ4Frame
+        compressed = lz4.frame.compress(chunk)
       compressed_length = len(compressed)
       print(compressed, compressed_length, len(chunk))
 
@@ -235,7 +247,7 @@ class PagedFile():
     desc.is_compressed = compress
     desc.name = name
     if compress:
-      desc.format = PageDesc.kLZ4 | PageDesc.kFile
+      desc.format = compression_format | PageDesc.kFile
       desc.length = compressed_length
       desc.uncompressed_length = len(chunk)
     else:
