@@ -20,10 +20,13 @@ class Intrinsics:
     return result
 
 def projection_from_intrinsics(intrinsics, z_near, z_far):
-  left = -intrinsics.cx / intrinsics.focal
-  right = (intrinsics.width - intrinsics.cx) / intrinsics.focal
-  bottom = -(intrinsics.height - intrinsics.cy) / intrinsics.focal
-  top = intrinsics.cy / intrinsics.focal
+  cx = intrinsics.cx + 0.5
+  cy = intrinsics.cy + 0.5
+
+  left = -cx / intrinsics.focal
+  right = (intrinsics.width - cx) / intrinsics.focal
+  bottom = -(intrinsics.height - cy) / intrinsics.focal
+  top = cy / intrinsics.focal
   result = (left * z_near, right * z_near, bottom * z_near, top * z_near, z_near, z_far)
   return result
 

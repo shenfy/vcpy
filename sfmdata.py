@@ -43,10 +43,12 @@ class Intrinsics:
     return result
 
   def projection(self, z_near, z_far):
-    left = -self.cx / self.f
-    right = (self.width - self.cx) / self.f
-    bottom = -(self.height - self.cy) / self.f
-    top = self.cy / self.f
+    cx = self.cx + 0.5
+    cy = self.cy + 0.5
+    left = -cx / self.f
+    right = (self.width - cx) / self.f
+    bottom = -(self.height - cy) / self.f
+    top = cy / self.f
     result = gl_frustum(left * z_near, right * z_near, bottom * z_near, top * z_near, z_near, z_far)
     return result
 
