@@ -1,7 +1,6 @@
 import numpy as np
 import sys
 import math
-import pfmimg
 
 def load_ppm(filename, verbose=True):
   f = open(filename, 'rb')
@@ -11,12 +10,11 @@ def load_ppm(filename, verbose=True):
     channel = 1
   elif tag[0:2] == 'P6': #3-channel
     channel = 3
-  else: #not a PFM
+  else: #not a PPM
     f.close()
     return None
 
   segments = f.readline().decode('utf8').strip().split(' ')
-  print(segments)
   width = int(segments[0])
   height = int(segments[1])
   max_val = int(f.readline())
@@ -64,12 +62,7 @@ def write_ppm(img, filename, verbose=True):
   f.close()
 
 if __name__ == '__main__':
-  if len(sys.argv) < 3:
-    print('Usage: python ppmimg.py input_fn output_fn')
-
-  img = load_ppm(sys.argv[1])
-  print(img.shape, img.dtype)
-  write_ppm(img, sys.argv[2])
+  pass
 
 
 
