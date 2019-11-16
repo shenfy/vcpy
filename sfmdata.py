@@ -28,7 +28,8 @@ class Intrinsics:
   def __init__(self):
     self.width = 0
     self.height = 0
-    self.f = 0
+    self.fx = 0
+    self.fy = 0
     self.cx = 0
     self.cy = 0
     self.distortion_type = Intrinsics.NoDistortion
@@ -37,7 +38,8 @@ class Intrinsics:
   @property
   def K(self):
     result = np.identity(3, dtype=float)
-    result[0, 0] = result[1, 1] = self.f
+    result[0, 0] = self.fx
+    result[1, 1] = self.fy
     result[0, 2] = self.cx
     result[1, 2] = self.cy
     return result
@@ -45,10 +47,10 @@ class Intrinsics:
   def projection(self, z_near, z_far):
     cx = self.cx + 0.5
     cy = self.cy + 0.5
-    left = -cx / self.f
-    right = (self.width - cx) / self.f
-    bottom = -(self.height - cy) / self.f
-    top = cy / self.f
+    left = -cx / self.fx
+    right = (self.width - cx) / self.fx
+    bottom = -(self.height - cy) / self.fy
+    top = cy / self.fy
     result = gl_frustum(left * z_near, right * z_near, bottom * z_near, top * z_near, z_near, z_far)
     return result
 
@@ -79,7 +81,7 @@ class Intrinsics:
 
   # pts: array of [2, n]
   def cam_2_img(self, p):
-    return (self.f * p.T + np.array([self.cx, self.cy], dtype=p.dtype)).T
+    return ([self.fx, self.fy] * p.T + np.array([self.cx, self.cy], dtype=p.dtype)).T
 
 class Extrinsic:
   def __init__(self):
@@ -151,7 +153,7 @@ class SfMData:
               'data': {
                 'width': intrinsics.width,
                 'height': intrinsics.height,
-                'focal_length': intrinsics.f,
+                'focal_length': (intrinsics.fx + intrinsics.fy) / 2,
                 'principal_point': [intrinsics.cx, intrinsics.cy],
                 'disto_k3': intrinsics.distortions
               }
@@ -198,7 +200,12 @@ def __parse_intrinsics(intrinsics):
     data = value['ptr_wrapper']['data']
     intrin.width = data['width']
     intrin.height = data['height']
-    intrin.f = data['focal_length']
+    focal_length = data['focal_length']
+    if isinstance(focal_length, list):
+      intrin.fx = focal_length[0]
+      intrin.fy = focal_length[1]
+    else:
+      intrin.fx = intrin.fy = focal_length
     principal_point = data['principal_point']
     intrin.cx = principal_point[0]
     intrin.cy = principal_point[1]
@@ -211,6 +218,8 @@ def __parse_intrinsics(intrinsics):
     elif 'disto_k1_pba' in data:
       intrin.distortion_type = Intrinsics.DistortionRadial1_PBA
       intrin.distortions = data['disto_k1_pba']
+    elif 'disto_t2_2' in value['ptr_wrapper']['data']:
+      intrin.distortions = value['ptr_wrapper']['data']['disto_t2_2']
     result[key] = intrin
   return result
 

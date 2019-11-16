@@ -6,7 +6,8 @@ class Intrinsics:
     self.camera_type = ''
     self.width = 0
     self.height = 0
-    self.focal = 0
+    self.fx = 0
+    self.fy = 0
     self.cx = 0
     self.cy = 0
     self.distortions = []
@@ -14,7 +15,8 @@ class Intrinsics:
   @property
   def K(self):
     result = np.identity(3, dtype=np.float64)
-    result[0, 0] = result[1, 1] = self.focal
+    result[0, 0] = self.fx
+    result[1, 1] = self.fy
     result[0, 2] = self.cx
     result[1, 2] = self.cy
     return result
@@ -23,10 +25,10 @@ def projection_from_intrinsics(intrinsics, z_near, z_far):
   cx = intrinsics.cx + 0.5
   cy = intrinsics.cy + 0.5
 
-  left = -cx / intrinsics.focal
-  right = (intrinsics.width - cx) / intrinsics.focal
-  bottom = -(intrinsics.height - cy) / intrinsics.focal
-  top = cy / intrinsics.focal
+  left = -cx / intrinsics.fx
+  right = (intrinsics.width - cx) / intrinsics.fx
+  bottom = -(intrinsics.height - cy) / intrinsics.fy
+  top = cy / intrinsics.fy
   result = (left * z_near, right * z_near, bottom * z_near, top * z_near, z_near, z_far)
   return result
 
@@ -58,7 +60,12 @@ def _parse_intrinsics(doc):
       data = value['ptr_wrapper']['data']
       intrinsics.width = data['width']
       intrinsics.height = data['height']
-      intrinsics.focal = data['focal_length']
+      focal_length = data['focal_length']
+      if isinstance(focal_length, list):
+        intrinsics.fx = focal_length[0]
+        intrinsics.fy = focal_length[1]
+      else:
+        intrinsics.fx = intrinsics.fy = focal_length
       intrinsics.cx = data['principal_point'][0]
       intrinsics.cy = data['principal_point'][1]
       intrinsics.distortions = data['disto_k3']
