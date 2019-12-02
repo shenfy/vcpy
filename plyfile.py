@@ -8,6 +8,8 @@ def load_ply(filename):
 
         while True:
             line = f.readline()
+            if not line:
+                raise RuntimeError('Unexpected EOF while parsing PLY header')
             if line.startswith(b'element vertex'):
                 num_vertices = int(line[14:])
             elif line.startswith(b'element face'):
