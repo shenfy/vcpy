@@ -44,14 +44,17 @@ class Intrinsics:
     result[1, 2] = self.cy
     return result
 
-  def projection(self, z_near, z_far):
+  def frustum_vec(self, z_near, z_far):
     cx = self.cx + 0.5
     cy = self.cy + 0.5
     left = -cx / self.fx
     right = (self.width - cx) / self.fx
     bottom = -(self.height - cy) / self.fy
     top = cy / self.fy
-    result = gl_frustum(left * z_near, right * z_near, bottom * z_near, top * z_near, z_near, z_far)
+    return np.array([left * z_near, right * z_near, bottom * z_near, top * z_near, z_near, z_far])
+
+  def projection(self, z_near, z_far):
+    result = gl_frustum(*self.frustum_vec(z_near, z_far))
     return result
 
   # pts: array of [3, n]
