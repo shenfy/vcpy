@@ -44,7 +44,7 @@ class ViewCameras:
       view_data = {}
       if view.name != None:
         view_data['name'] = view.name
-      view_data['view_mat'] = view.view_mat.tolist()
+      view_data['view_mat'] = view.view_mat.flatten().tolist()
       view_data['left'] = view.left
       view_data['right'] = view.right
       view_data['bottom'] = view.bottom
@@ -69,7 +69,7 @@ def load_view_camera_data(file_fn):
       view_camera = ViewCamera()
       if 'name' in view_data:
         view_camera.name = view_data['name']
-      view_camera.view_mat = np.array(view_data['view_mat'])
+      view_camera.view_mat = np.array(view_data['view_mat']).reshape((4, 4))
       view_camera.left = view_data['left']
       view_camera.right = view_data['right']
       view_camera.bottom = view_data['bottom']
