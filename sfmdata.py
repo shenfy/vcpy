@@ -1,5 +1,6 @@
 import json
 import numpy as np
+import bson
 from vcpy.m3d import gl_frustum
 
 class View:
@@ -24,6 +25,7 @@ class Intrinsics:
   DistortionRadial3 = 1
   DistortionRadial1 = 2
   DistortionRadial1_PBA = 6
+  DistortionRadial3Brown2 = 11
 
   def __init__(self):
     self.width = 0
@@ -79,6 +81,22 @@ class Intrinsics:
       r2 = np.sum(pts * pts, 0)
       coeff = r2 * self.distortions[0] + 1.0
       return pts * coeff
+    elif self.distortion_type == Intrinsics.DistortionRadial3Brown2:
+      x_u = pts[0, :]
+      y_u = pts[1, :]
+      r2 = x_u ** 2 + y_u ** 2
+      r4 = r2 * r2
+      r6 = r4 * r2
+      k1 = self.distortions[0]
+      k2 = self.distortions[1]
+      k3 = self.distortions[2]
+      t1 = self.distortions[3]
+      t2 = self.distortions[4]
+      r_coeff = 1.0 + k1 * r2 + k2 * r4 + k3 * r6
+      t_x = t2 * (r2 + 2.0 * x_u * x_u) + 2.0 * t1 * x_u * y_u
+      t_y = t1 * (r2 + 2.0 * y_u * y_u) + 2.0 * t2 * x_u * y_u
+      return np.array([self.cx + (x_u * r_coeff + t_x) * self.fx,
+        self.cy + (y_u * r_coeff + t_y) * self.fy])
     else:
       raise RuntimeError('Distortion type {} unsupported'.format(self.distortion_type))
 
@@ -226,6 +244,32 @@ def __parse_intrinsics(intrinsics):
     result[key] = intrin
   return result
 
+def __distortion_from_cv_to_openmvg(distortions):
+  if len(distortions) != 5:
+    raise RuntimeError('Unexpected distortion_type')
+
+  return distortions[:2] + [distortions[-1]] + distortions[2:4]
+
+def __from_filename_get_camera_name(filename):
+  return filename[:filename.find('_')]
+
+def __parse_cctag_intrinsics(intrinsics):
+  result = {}
+  for intrinsics_ in intrinsics:
+    camera_name = intrinsics_['name']
+    intrin = Intrinsics()
+    intrin.width = intrinsics_['width']
+    intrin.height = intrinsics_['height']
+    intrin.fx = intrinsics_['fx']
+    intrin.fy = intrinsics_['fy']
+    intrin.cx = intrinsics_['px']
+    intrin.cy = intrinsics_['py']
+    intrin.distortion_type = Intrinsics.DistortionRadial3Brown2
+    intrin.distortions = __distortion_from_cv_to_openmvg(intrinsics_['distortion_params'])
+    result[camera_name] = intrin
+
+  return result
+
 def __parse_extrinsics(extrinsics):
   result = {}
   for extrinsic in extrinsics:
@@ -235,6 +279,17 @@ def __parse_extrinsics(extrinsics):
     extrin.camera_frame[:3, :3] = np.array(value['rotation']).T
     extrin.camera_frame[:3, 3] = np.array(value['center'])
     result[key] = extrin
+  return result
+
+def __parse_cctag_extrinsics(views):
+  result = {}
+  for view in views:
+    view_id = view['id']
+    extrin = Extrinsic()
+    extrin.camera_frame[:3, :3] = np.array(view['R']).T
+    extrin.camera_frame[:3, 3] = -np.array(view['R']).T @ view['t']
+    result[view_id] = extrin
+
   return result
 
 def __parse_views(views, intrinsics, extrinsics):
@@ -258,6 +313,22 @@ def __parse_views(views, intrinsics, extrinsics):
     result[key] = v
   return result
 
+def __parse_cctag_views(views, intrinsics, extrinsics):
+  result = {}
+  for view in views:
+    key = view['id']
+    v = View()
+    v.filename = view['name'][view['name'].find('_')+1:] + '.JPG'
+    camera_name = __from_filename_get_camera_name(view['name'])
+    v.intrinsics = intrinsics[camera_name]
+    v.width = v.intrinsics.width
+    v.height = v.intrinsics.height
+    v.id = view['id']
+    v.pose = extrinsics[v.id]
+    result[key] = v
+
+  return result
+
 def __parse_structure(structure, views):
   result = {}
   for s in structure:
@@ -275,6 +346,21 @@ def __parse_structure(structure, views):
     result[key] = landmark
   return result
 
+def __parse_cctag_structure(structure, views):
+  result = {}
+  for track in structure['tracks']:
+    key = track['tag_id']
+    landmark = Landmark()
+    landmark.X = track['world_pt']
+    for observation in track['obs']:
+      view_key = observation['view_id']
+      ob = Observation()
+      ob.x = np.array(observation['image_pt'])
+      landmark.observations[views[view_key]] = ob
+    result[key] = landmark
+
+  return result
+
 def load_sfm_data(file):
   content = json.load(file)
   result = SfMData()
@@ -283,6 +369,29 @@ def load_sfm_data(file):
   result.extrinsics = __parse_extrinsics(content['extrinsics'])
   result.views = __parse_views(content['views'], result.intrinsics, result.extrinsics)
   result.structure = __parse_structure(content['structure'], result.views)
+
+  for landmark in result.structure.values():
+    for view in landmark.observations:
+      view.observations[landmark] = landmark.observations[view]
+
+  return result
+
+def load_cctag_sfm_data(filepath):
+  if str(filepath).endswith('.json'):
+    with open(filepath, 'r') as f:
+      content = json.load()
+  elif str(filepath).endswith('.bson'):
+    with open(filepath, 'rb') as f:
+      content = bson.loads(f.read())
+  else:
+    raise RuntimeError('Unexpected file format.')
+
+  result = SfMData()
+  result.root_path = filepath.parent.parent.parent / 'input'
+  result.intrinsics = __parse_cctag_intrinsics(content['intrinsics'])
+  result.extrinsics = __parse_cctag_extrinsics(content['views'])
+  result.views = __parse_cctag_views(content['views'], result.intrinsics, result.extrinsics)
+  result.structure = __parse_cctag_structure(content['structure'], result.views)
 
   for landmark in result.structure.values():
     for view in landmark.observations:
