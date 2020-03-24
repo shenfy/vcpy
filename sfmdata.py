@@ -139,8 +139,6 @@ class SfMData:
     self.structure = {}
 
   def dump_to_cctag(self, filepath):
-    # intrinsics = {value: key for key, value in self.intrinsics.items()}
-    # extrinsics = {value: key for key, value in self.extrinsics.items()}
     content = {
       'intrinsics': [
         {
