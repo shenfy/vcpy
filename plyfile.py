@@ -6,6 +6,8 @@ def load_ply(filename):
         is_binary = True
         endianness = '<'
 
+        num_faces = 0
+
         while True:
             line = f.readline()
             if not line:

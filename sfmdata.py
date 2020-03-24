@@ -12,6 +12,7 @@ class View:
     self.intrinsics = None
     self.pose = None
     self.observations = {}
+    self.valid_frame = False
 
   def project(self, p, distort=True):
     if self.intrinsics is None or self.pose is None:
@@ -117,6 +118,7 @@ class Extrinsic:
 # observations: dict{View: Observation} for each view it is observed in
 class Landmark:
   def __init__(self):
+    self.id = -1
     self.X = np.zeros(3, dtype=float)
     self.observations = {}
 
@@ -135,6 +137,65 @@ class SfMData:
     self.intrinsics = {}
     self.extrinsics = {}
     self.structure = {}
+
+  def dump_to_cctag(self, filepath):
+    # intrinsics = {value: key for key, value in self.intrinsics.items()}
+    # extrinsics = {value: key for key, value in self.extrinsics.items()}
+    content = {
+      'intrinsics': [
+        {
+          'name': key,
+          'width': intrin.width,
+          'height': intrin.height,
+          'fx': intrin.fx,
+          'fy': intrin.fy,
+          'px': intrin.cx,
+          'py': intrin.cy,
+          'distortion_params': distortion_from_openmvg_to_cv(intrin.distortions)
+        } for key, intrin in self.intrinsics.items()
+      ],
+      'views': [
+        {
+          'id': view.id,
+          'name': view.filename[:-4], # remove extension
+          'K': view.intrinsics.K.tolist(),
+          'R': view.pose.camera_frame[:3, :3].T.tolist(),
+          't': (-view.pose.camera_frame[:3, :3].T @ view.pose.camera_frame[:3, 3]).tolist(),
+          'tags': [
+            {
+              'id': landmark.id,
+              'x': obs.x[0],
+              'y': obs.x[1]
+            } for landmark, obs in view.observations.items()
+          ],
+          'valid_frame': view.valid_frame
+        } for _, view in self.views.items()
+      ],
+      'structure': {
+        'tracks': [
+          {
+            'tag_id': point_id,
+            'type': 'TagCenterTrack',
+            'world_pt': landmark.X,
+            'obs': [
+              {
+                'image_pt': obs.x.tolist(),
+                'view_id': obs.id_feat
+              } for view, obs in landmark.observations.items()
+            ]
+          } for point_id, landmark in self.structure.items()
+        ]
+      }
+    }
+
+    if str(filepath).endswith('.json'):
+      with open(filepath, 'w') as f:
+        json.dump(content, f, indent=2)
+    elif str(filepath).endswith('.bson'):
+      with open(filepath, 'wb') as f:
+        f.write(bson.dumps(content))
+    else:
+      raise RuntimeError('Unexpected file format.')
 
   def dump(self, f):
     raise NotImplementedError('current implementation is wrong')
@@ -250,6 +311,12 @@ def __distortion_from_cv_to_openmvg(distortions):
 
   return distortions[:2] + [distortions[-1]] + distortions[2:4]
 
+def distortion_from_openmvg_to_cv(distortions):
+  if len(distortions) != 5:
+    raise RuntimeError('Unexpected distortion_type')
+
+  return distortions[:2] + distortions[3:5] + [distortions[2]]
+
 def __from_filename_get_camera_name(filename):
   return filename[:filename.find('_')]
 
@@ -318,13 +385,14 @@ def __parse_cctag_views(views, intrinsics, extrinsics):
   for view in views:
     key = view['id']
     v = View()
-    v.filename = view['name'][view['name'].find('_')+1:] + '.JPG'
+    v.filename = view['name'] + '.JPG' # add extension
     camera_name = __from_filename_get_camera_name(view['name'])
     v.intrinsics = intrinsics[camera_name]
     v.width = v.intrinsics.width
     v.height = v.intrinsics.height
     v.id = view['id']
     v.pose = extrinsics[v.id]
+    v.valid_frame = view['valid_frame']
     result[key] = v
 
   return result
@@ -351,10 +419,12 @@ def __parse_cctag_structure(structure, views):
   for track in structure['tracks']:
     key = track['tag_id']
     landmark = Landmark()
+    landmark.id = track['tag_id']
     landmark.X = track['world_pt']
     for observation in track['obs']:
       view_key = observation['view_id']
       ob = Observation()
+      ob.id_feat = observation['view_id']
       ob.x = np.array(observation['image_pt'])
       landmark.observations[views[view_key]] = ob
     result[key] = landmark
