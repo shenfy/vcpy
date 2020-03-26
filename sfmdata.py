@@ -303,7 +303,7 @@ def __parse_intrinsics(intrinsics):
     result[key] = intrin
   return result
 
-def __distortion_from_cv_to_openmvg(distortions):
+def distortion_from_cv_to_openmvg(distortions):
   if len(distortions) != 5:
     raise RuntimeError('Unexpected distortion_type')
 
@@ -330,7 +330,7 @@ def __parse_cctag_intrinsics(intrinsics):
     intrin.cx = intrinsics_['px']
     intrin.cy = intrinsics_['py']
     intrin.distortion_type = Intrinsics.DistortionRadial3Brown2
-    intrin.distortions = __distortion_from_cv_to_openmvg(intrinsics_['distortion_params'])
+    intrin.distortions = distortion_from_cv_to_openmvg(intrinsics_['distortion_params'])
     result[camera_name] = intrin
 
   return result
