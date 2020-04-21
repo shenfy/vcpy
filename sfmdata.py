@@ -156,7 +156,6 @@ class SfMData:
         {
           'id': view.id,
           'name': view.filename[:-4], # remove extension
-          'K': view.intrinsics.K.tolist(),
           'R': view.pose.camera_frame[:3, :3].T.tolist(),
           't': (-view.pose.camera_frame[:3, :3].T @ view.pose.camera_frame[:3, 3]).tolist(),
           'tags': [
