@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 import numpy as np
 import bson
 from vcpy.m3d import gl_frustum
@@ -185,14 +186,8 @@ class SfMData:
       }
     }
 
-    if str(filepath).endswith('.json'):
-      with open(filepath, 'w') as f:
-        json.dump(content, f, indent=2)
-    elif str(filepath).endswith('.bson'):
-      with open(filepath, 'wb') as f:
-        f.write(bson.dumps(content))
-    else:
-      raise RuntimeError('Unexpected file format.')
+    with Path(filepath).open('wb') as f:
+      f.write(bson.dumps(content))
 
   def dump(self, f):
     raise NotImplementedError('current implementation is wrong')
@@ -430,7 +425,7 @@ def __parse_cctag_structure(structure, views):
 
   return result
 
-def load_sfm_data(file):
+def load_openmvg_sfm_data(file):
   content = json.load(file)
   result = SfMData()
   result.root_path = content['root_path']
@@ -445,18 +440,10 @@ def load_sfm_data(file):
 
   return result
 
-def load_cctag_sfm_data(filepath):
-  if str(filepath).endswith('.json'):
-    with open(filepath, 'r') as f:
-      content = json.load()
-  elif str(filepath).endswith('.bson'):
-    with open(filepath, 'rb') as f:
-      content = bson.loads(f.read())
-  else:
-    raise RuntimeError('Unexpected file format.')
-
+def load_tag_sfm_data(file):
+  content = bson.loads(file.read())
   result = SfMData()
-  result.root_path = filepath.parent.parent.parent / 'input'
+  result.root_path = None
   result.intrinsics = __parse_cctag_intrinsics(content['intrinsics'])
   result.extrinsics = __parse_cctag_extrinsics(content['views'])
   result.views = __parse_cctag_views(content['views'], result.intrinsics, result.extrinsics)
@@ -467,6 +454,17 @@ def load_cctag_sfm_data(filepath):
       view.observations[landmark] = landmark.observations[view]
 
   return result
+
+def load_sfm_data(path):
+  path = Path(path)
+  if path.suffix == '.json':
+    with path.open('r') as f:
+      return load_openmvg_sfm_data(f)
+  elif path.suffix == '.bson':
+    with path.open('rb') as f:
+      return load_tag_sfm_data(f)
+  else:
+    raise RuntimeError('Unrecognized SfM file {}'.format(path))
 
 def sfm_to_gl_camera_frame(camera_frame):
   result = camera_frame.copy()
