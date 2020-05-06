@@ -7,6 +7,7 @@ from vcpy.m3d import gl_frustum
 class View:
   def __init__(self):
     self.filename = ''
+    self.camera_name = ''
     self.width = 0
     self.height = 0
     self.id = -1
@@ -139,7 +140,7 @@ class SfMData:
     self.extrinsics = {}
     self.structure = {}
 
-  def dump_to_cctag(self, filepath):
+  def dump_to_tag(self, f):
     content = {
       'intrinsics': [
         {
@@ -156,7 +157,9 @@ class SfMData:
       'views': [
         {
           'id': view.id,
-          'name': view.filename[:-4], # remove extension
+          'name': Path(view.filename).stem,
+          'filename': view.filename,
+          'camera_name': view.camera_name,
           'R': view.pose.camera_frame[:3, :3].T.tolist(),
           't': (-view.pose.camera_frame[:3, :3].T @ view.pose.camera_frame[:3, 3]).tolist(),
           'tags': [
@@ -186,10 +189,9 @@ class SfMData:
       }
     }
 
-    with Path(filepath).open('wb') as f:
-      f.write(bson.dumps(content))
+    f.write(bson.dumps(content))
 
-  def dump(self, f):
+  def dump_to_openmvg(self, f):
     raise NotImplementedError('current implementation is wrong')
     intrinsics = {value: key for key, value in self.intrinsics.items()}
     extrinsics = {value: key for key, value in self.extrinsics.items()}
@@ -312,7 +314,7 @@ def distortion_from_openmvg_to_cv(distortions):
 def __from_filename_get_camera_name(filename):
   return filename[:filename.find('_')]
 
-def __parse_cctag_intrinsics(intrinsics):
+def __parse_tag_intrinsics(intrinsics):
   result = {}
   for intrinsics_ in intrinsics:
     camera_name = intrinsics_['name']
@@ -340,7 +342,7 @@ def __parse_extrinsics(extrinsics):
     result[key] = extrin
   return result
 
-def __parse_cctag_extrinsics(views):
+def __parse_tag_extrinsics(views):
   result = {}
   for view in views:
     view_id = view['id']
@@ -364,6 +366,7 @@ def __parse_views(views, intrinsics, extrinsics):
     v.id = data['id_view']
     assert v.id == key
     id_intrinsic = data['id_intrinsic']
+    v.camera_name = str(id_intrinsic)
     if id_intrinsic in intrinsics:
       v.intrinsics = intrinsics[id_intrinsic]
     id_pose = data['id_pose']
@@ -372,16 +375,26 @@ def __parse_views(views, intrinsics, extrinsics):
     result[key] = v
   return result
 
-def __parse_cctag_views(views, intrinsics, extrinsics):
+def __parse_tag_views(views, intrinsics, extrinsics):
   result = {}
   for view in views:
     if not view['valid_frame']:
       continue
     key = view['id']
     v = View()
-    v.filename = view['name'] + '.JPG' # add extension
-    camera_name = __from_filename_get_camera_name(view['name'])
-    v.intrinsics = intrinsics[camera_name]
+    if 'filename' in view:
+      v.filename = view['filename']
+    else:
+      # in commit 828fb8071ae9ed057834926d2d012f36213c542b,
+      # we hardcoded the filename as view['name'] + '.JPG'
+      v.filename = view['name'] + '.JPG'
+    if 'camera_name' in view:
+      v.camera_name = view['camera_name']
+    else:
+      # in commit 828fb8071ae9ed057834926d2d012f36213c542b,
+      # we set up the rule that view['name'] == camera_name + '_' + filename.stem
+      v.camera_name = __from_filename_get_camera_name(view['name'])
+    v.intrinsics = intrinsics[v.camera_name]
     v.width = v.intrinsics.width
     v.height = v.intrinsics.height
     v.id = view['id']
@@ -408,7 +421,7 @@ def __parse_structure(structure, views):
     result[key] = landmark
   return result
 
-def __parse_cctag_structure(structure, views):
+def __parse_tag_structure(structure, views):
   result = {}
   for track in structure['tracks']:
     key = track['tag_id']
@@ -444,10 +457,10 @@ def load_tag_sfm_data(file):
   content = bson.loads(file.read())
   result = SfMData()
   result.root_path = None
-  result.intrinsics = __parse_cctag_intrinsics(content['intrinsics'])
-  result.extrinsics = __parse_cctag_extrinsics(content['views'])
-  result.views = __parse_cctag_views(content['views'], result.intrinsics, result.extrinsics)
-  result.structure = __parse_cctag_structure(content['structure'], result.views)
+  result.intrinsics = __parse_tag_intrinsics(content['intrinsics'])
+  result.extrinsics = __parse_tag_extrinsics(content['views'])
+  result.views = __parse_tag_views(content['views'], result.intrinsics, result.extrinsics)
+  result.structure = __parse_tag_structure(content['structure'], result.views)
 
   for landmark in result.structure.values():
     for view in landmark.observations:
