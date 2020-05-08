@@ -378,8 +378,6 @@ def __parse_views(views, intrinsics, extrinsics):
 def __parse_tag_views(views, intrinsics, extrinsics):
   result = {}
   for view in views:
-    if not view['valid_frame']:
-      continue
     key = view['id']
     v = View()
     if 'filename' in view:
