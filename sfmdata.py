@@ -14,7 +14,6 @@ class View:
     self.intrinsics = None
     self.pose = None
     self.observations = {}
-    self.valid_frame = False
 
   def project(self, p, distort=True):
     if self.intrinsics is None or self.pose is None:
@@ -141,6 +140,8 @@ class SfMData:
     self.structure = {}
 
   def dump_to_tag(self, f):
+    placeholder_R = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+    placeholder_t = [0.0, 0.0, 0.0]
     content = {
       'intrinsics': [
         {
@@ -160,8 +161,8 @@ class SfMData:
           'name': Path(view.filename).stem,
           'filename': view.filename,
           'camera_name': view.camera_name,
-          'R': view.pose.camera_frame[:3, :3].T.tolist(),
-          't': (-view.pose.camera_frame[:3, :3].T @ view.pose.camera_frame[:3, 3]).tolist(),
+          'R': placeholder_R if view.pose is None else view.pose.camera_frame[:3, :3].T.tolist(),
+          't': placeholder_t if view.pose is None else (-view.pose.camera_frame[:3, :3].T @ view.pose.camera_frame[:3, 3]).tolist(),
           'tags': [
             {
               'id': landmark.id,
@@ -169,8 +170,8 @@ class SfMData:
               'y': obs.x[1]
             } for landmark, obs in view.observations.items()
           ],
-          'valid_frame': view.valid_frame
-        } for _, view in self.views.items()
+          'valid_frame': view.pose is not None
+        } for view in self.views.values()
       ],
       'structure': {
         'tracks': [
@@ -396,8 +397,10 @@ def __parse_tag_views(views, intrinsics, extrinsics):
     v.width = v.intrinsics.width
     v.height = v.intrinsics.height
     v.id = view['id']
-    v.pose = extrinsics[v.id]
-    v.valid_frame = view['valid_frame']
+    if view['valid_frame']:
+      v.pose = extrinsics[v.id]
+    else:
+      v.pose = None
     result[key] = v
 
   return result
