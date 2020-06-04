@@ -4,6 +4,24 @@ import numpy as np
 import bson
 from vcpy.m3d import gl_frustum
 
+class NamedTag:
+  def __init__(self, id=0, x=0, y=0):
+    self.id = id
+    self.x = x
+    self.y = y
+
+  @classmethod
+  def from_json(cls, data):
+    tag = cls(data['id'], data['x'], data['y'])
+    return tag
+
+  def to_json(self):
+    return {
+      'id': self.id,
+      'x': self.x,
+      'y': self.y
+    }
+
 class View:
   def __init__(self):
     self.filename = ''
@@ -14,6 +32,7 @@ class View:
     self.intrinsics = None
     self.pose = None
     self.observations = {}
+    self.tags = []
 
   def project(self, p, distort=True):
     if self.intrinsics is None or self.pose is None:
@@ -163,13 +182,7 @@ class SfMData:
           'camera_name': view.camera_name,
           'R': placeholder_R if view.pose is None else view.pose.camera_frame[:3, :3].T.tolist(),
           't': placeholder_t if view.pose is None else (-view.pose.camera_frame[:3, :3].T @ view.pose.camera_frame[:3, 3]).tolist(),
-          'tags': [
-            {
-              'id': landmark.id,
-              'x': obs.x[0],
-              'y': obs.x[1]
-            } for landmark, obs in view.observations.items()
-          ],
+          'tags': [tag.to_json() for tag in view.tags],
           'valid_frame': view.pose is not None
         } for view in self.views.values()
       ],
@@ -401,6 +414,8 @@ def __parse_tag_views(views, intrinsics, extrinsics):
       v.pose = extrinsics[v.id]
     else:
       v.pose = None
+    for tag in view['tags']:
+      v.tags.append(NamedTag.from_json(tag))
     result[key] = v
 
   return result
