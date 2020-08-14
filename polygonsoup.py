@@ -17,85 +17,55 @@ _VERTEX_ATTRIB_DEFAULT_TYPE = {
   VertexAttribute.COLOR: (3, np.uint8)
 }
 
-class Vertex:
-  def __init__(self, *args, **kwargs):
-    for attrib in itertools.chain(args, [VertexAttribute(key) for key in kwargs]):
-      count, dtype = _VERTEX_ATTRIB_DEFAULT_TYPE[attrib]
-      setattr(self, attrib.value, np.zeros(count, dtype=dtype))
-
-    for key, value in kwargs.items():
-      self.set_attrib(VertexAttribute(key), value)
-
-  def __eq__(self, other):
-    for attrib in VertexAttribute:
-      self_has = hasattr(self, attrib.value)
-      other_has = hasattr(other, attrib.value)
-      if self_has != other_has:
-        return False
-      if self_has and other_has:
-        self_attrib = getattr(self, attrib.value)
-        other_attrib = getattr(other, attrib.value)
-        if self_attrib.shape != other_attrib.shape:
-          return False
-        if self_attrib.dtype != other_attrib.dtype:
-          return False
-        if (self_attrib != other_attrib).any():
-          return False
-    return True
-
-  def __repr__(self):
-    attrib_reprs = []
-    for attrib in VertexAttribute:
-      if hasattr(self, attrib.value):
-        attrib_reprs.append('{}={}'.format(attrib.value, repr(getattr(self, attrib.value))))
-    return 'Vertex({})'.format(', '.join(attrib_reprs))
-
-  def get_attrib(self, attrib):
-    count, dtype = _VERTEX_ATTRIB_DEFAULT_TYPE[attrib]
-    value = getattr(self, attrib.value)
-    if value.shape != (count,) or value.dtype != dtype:
-      raise RuntimeError('Invalid shape({})/dtype({}) for attribute {}'.format(
-        value.shape, value.dtype, attrib))
-    return value
-
-  def set_attrib(self, attrib, value):
-    if not hasattr(self, attrib.value):
-      raise RuntimeError('This vertex has no attribute {}'.format(attrib))
-    count, dtype = _VERTEX_ATTRIB_DEFAULT_TYPE[attrib]
-    value = np.array(value, dtype=dtype)
-    if value.shape != (count,):
-      raise RuntimeError('Invalid shape {} for attribute {}'.format(value.shape, attrib))
-    setattr(self, attrib.value, value)
-
 class PolygonSoup:
-  def __init__(self, vertex_attributes):
+  def __init__(self, num_verts, vertex_attributes):
     self.vertex_attributes = vertex_attributes
-    self.vertices = []
+    for attrib in self.vertex_attributes:
+      count, dtype = _VERTEX_ATTRIB_DEFAULT_TYPE[attrib]
+      setattr(self, attrib.value, np.zeros(shape=(num_verts, count), dtype=dtype))
     self.faces = []
 
   def __eq__(self, other):
-    return (self.vertex_attributes == other.vertex_attributes
-      and self.vertices == other.vertices
-      and self.faces == other.faces)
+    if self.vertex_attributes != other.vertex_attributes:
+      return False
+    for attrib in self.vertex_attributes:
+      self_value = getattr(self, attrib.value)
+      other_value = getattr(other, attrib.value)
+      if self_value.size != 0 and other_value.size != 0:
+        if (self_value != other_value).any():
+          return False
+    return self.faces == other.faces
+
+  def num_verts(self):
+    if len(self.vertex_attributes) == 0:
+      return 0
+    return getattr(self, self.vertex_attributes[0].value).shape[0]
 
   def add_vertex(self, *args, **kwargs):
     if args and kwargs:
       raise RuntimeError('Positional arguments and keyword arguments cannot be used together')
 
-    vertex = Vertex(*self.vertex_attributes)
-
     if args:
       if len(args) != len(self.vertex_attributes):
         raise RuntimeError('Expected {} vertex attributes, got {}'.format(
           len(self.vertex_attributes), len(args)))
+
       for arg, attrib in zip(args, self.vertex_attributes):
-        vertex.set_attrib(attrib, arg)
+        value = getattr(self, attrib.value)
+        _, dtype = _VERTEX_ATTRIB_DEFAULT_TYPE[attrib]
+        setattr(self, attrib.value, np.vstack((value, np.array(arg, dtype=dtype))))
     else:
       for key, value in kwargs.items():
-        vertex.set_attrib(VertexAttribute(key), value)
+        if not hasattr(self, key):
+          raise RuntimeError('Attribute {} not present'.format(VertexAttribute(key)))
 
-    self.vertices.append(vertex)
-    return vertex
+      for attrib in self.vertex_attributes:
+        count, dtype = _VERTEX_ATTRIB_DEFAULT_TYPE[attrib]
+        value = getattr(self, attrib.value)
+        setattr(self, attrib.value, np.vstack((value, np.zeros(shape=(1, count), dtype=dtype))))
+
+      for key, value in kwargs.items():
+        getattr(self, key)[-1, :] = value
 
 def _parse_ply_header(file):
   line = file.readline()
@@ -247,7 +217,7 @@ def _collect_vertex_attributes(element):
 
     index = index + len(needed_props)
 
-  return result
+  return tuple(result)
 
 def _validate_face_element(element):
   if len(element['properties']) != 1:
@@ -279,7 +249,8 @@ def write_ply(file, soup, write_binary):
   file.write(b'comment vcpy.polygonsoup generated\n')
 
   # vertex header
-  file.write('element vertex {}\n'.format(len(soup.vertices)).encode('utf8'))
+  num_verts = soup.num_verts()
+  file.write('element vertex {}\n'.format(num_verts).encode('utf8'))
   for attrib in soup.vertex_attributes:
     for p in _ATTRIB_TO_PROPERTY[attrib]:
       file.write('property {} {}\n'.format(*p).encode('utf8'))
@@ -292,14 +263,22 @@ def write_ply(file, soup, write_binary):
   file.write(b'end_header\n')
 
   # vertex data
+  values = [getattr(soup, attrib.value) for attrib in soup.vertex_attributes]
+  # ensure data shapes and types are correct
+  for attrib, value in zip(soup.vertex_attributes, values):
+    count, dtype = _VERTEX_ATTRIB_DEFAULT_TYPE[attrib]
+    if value.shape != (soup.num_verts(), count) or value.dtype != dtype:
+      raise RuntimeError('Invalid shape {}/dtype {} for vertex attribute {}'.format(
+        value.shape, value.dtype, attrib))
+
   if write_binary:
-    for vertex in soup.vertices:
-      for attrib in soup.vertex_attributes:
-        file.write(vertex.get_attrib(attrib).tobytes())
+    for i in range(num_verts):
+      for attrib, value in zip(soup.vertex_attributes, values):
+        file.write(value[i, :].tobytes())
   else:
-    for vertex in soup.vertices:
-      for attrib in soup.vertex_attributes:
-        value = vertex.get_attrib(attrib)
+    for i in range(num_verts):
+      for attrib, value in zip(soup.vertex_attributes, values):
+        value = value[i, :]
         file.write(('{} ' * value.size).format(*value).encode('utf8'))
       file.write(b'\n')
 
@@ -327,7 +306,7 @@ def load_ply(file):
   # decide meta data
   num_verts = 0
   num_faces = 0
-  vertex_attributes = []
+  vertex_attributes = ()
   for element in header['elements']:
     if element['name'] == 'vertex':
       num_verts = element['size']
@@ -339,29 +318,28 @@ def load_ply(file):
       raise RuntimeError('Unsupported element {}'.format(element['name']))
 
   # read data
-  result = PolygonSoup(vertex_attributes)
-  result.vertices = [Vertex(*vertex_attributes) for _ in range(num_verts)]
+  result = PolygonSoup(num_verts, vertex_attributes)
+  values = [getattr(result, attrib.value) for attrib in vertex_attributes]
   for element in header['elements']:
     if element['name'] == 'vertex':
       if is_binary:
-        for vertex in result.vertices:
-          for attrib in vertex_attributes:
+        for i in range(num_verts):
+          for attrib, value in zip(vertex_attributes, values):
             count, dtype = _VERTEX_ATTRIB_DEFAULT_TYPE[attrib]
             buf = _read_at_least(file, count * np.dtype(dtype).itemsize)
-            setattr(vertex, attrib.value, np.frombuffer(buf, dtype=dtype, count=count))
+            value[i, :] = np.frombuffer(buf, dtype=dtype, count=count)
       else:
         # parse line by line
-        for vertex in result.vertices:
+        for i in range(num_verts):
           # mask sure we consume the whole line
           line = file.readline()
           words = line.strip().split(b' ')
           index = 0
-          for attrib in vertex_attributes:
+          for attrib, value in zip(vertex_attributes, values):
             count, dtype = _VERTEX_ATTRIB_DEFAULT_TYPE[attrib]
             if len(words) < index + count:
               raise RuntimeError('Invalid vertex {}'.format(line))
-            value = np.array([dtype(v) for v in words[index:index+count]], dtype=dtype)
-            setattr(vertex, attrib.value, value)
+            value[i, :] = np.array([dtype(v) for v in words[index:index+count]], dtype=dtype)
             index += count
           if index != len(words):
             raise RuntimeError('Invalid vertex {}'.format(line))
