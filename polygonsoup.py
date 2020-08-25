@@ -71,7 +71,8 @@ def _parse_ply_header(file):
   line = file.readline()
   if not line:
     raise RuntimeError('Unexpected EOF')
-  if line != b'ply\n':
+  line = line.strip()
+  if line != b'ply':
     raise RuntimeError('Unexpected line {}'.format(line))
 
   result = {
@@ -229,7 +230,7 @@ def _validate_face_element(element):
 
   size_type, data_type, name = prop
   if ((size_type != 'uchar' and size_type != 'uint8')
-    or (data_type != 'int' and data_type != 'uint32')
+    or (data_type != 'int' and data_type != 'uint32' and data_type != 'int32')
     or name != 'vertex_indices'):
     raise RuntimeError('Unsupported face list property {}'.format(prop))
 
