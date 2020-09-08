@@ -195,7 +195,7 @@ class SfMData:
             'obs': [
               {
                 'image_pt': obs.x.tolist(),
-                'view_id': obs.id_feat
+                'view_id': view.id
               } for view, obs in landmark.observations.items()
             ]
           } for point_id, landmark in self.structure.items()
@@ -447,7 +447,6 @@ def __parse_tag_structure(structure, views):
     for observation in track['obs']:
       view_key = observation['view_id']
       ob = Observation()
-      ob.id_feat = observation['view_id']
       ob.x = np.array(observation['image_pt'])
       landmark.observations[views[view_key]] = ob
     result[key] = landmark
