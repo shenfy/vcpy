@@ -239,7 +239,6 @@ class PagedFile():
         compression_format = PageDesc.kLZ4Frame
         compressed = lz4.frame.compress(chunk)
       compressed_length = len(compressed)
-      print(compressed, compressed_length, len(chunk))
 
     # add desc
     desc = PageDesc()

@@ -231,7 +231,7 @@ def _validate_face_element(element):
   size_type, data_type, name = prop
   if ((size_type != 'uchar' and size_type != 'uint8')
     or (data_type != 'int' and data_type != 'uint32' and data_type != 'int32')
-    or name != 'vertex_indices'):
+    or (name != 'vertex_indices' and name != 'vertex_index')):
     raise RuntimeError('Unsupported face list property {}'.format(prop))
 
 def _read_at_least(file, size):
