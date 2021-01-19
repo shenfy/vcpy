@@ -93,7 +93,7 @@ def gl_viewport(width, height):
 
 @njit
 def v3v4(v3, w):
-    return array([v3[0], v3[1], v3[2], w])
+    return np.array([v3[0], v3[1], v3[2], w])
 
 @njit
 def rotation_from_normal(z):
