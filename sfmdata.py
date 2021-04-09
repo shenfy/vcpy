@@ -453,44 +453,46 @@ def __parse_tag_structure(structure, views):
 
   return result
 
-def load_openmvg_sfm_data(file):
+def load_openmvg_sfm_data(file, load_structure):
   content = json.load(file)
   result = SfMData()
   result.root_path = content['root_path']
   result.intrinsics = __parse_intrinsics(content['intrinsics'])
   result.extrinsics = __parse_extrinsics(content['extrinsics'])
   result.views = __parse_views(content['views'], result.intrinsics, result.extrinsics)
-  result.structure = __parse_structure(content['structure'], result.views)
+  if load_structure:
+    result.structure = __parse_structure(content['structure'], result.views)
 
-  for landmark in result.structure.values():
-    for view in landmark.observations:
-      view.observations[landmark] = landmark.observations[view]
+    for landmark in result.structure.values():
+      for view in landmark.observations:
+        view.observations[landmark] = landmark.observations[view]
 
   return result
 
-def load_tag_sfm_data(file):
+def load_tag_sfm_data(file, load_structure):
   content = bson.loads(file.read())
   result = SfMData()
   result.root_path = None
   result.intrinsics = __parse_tag_intrinsics(content['intrinsics'])
   result.extrinsics = __parse_tag_extrinsics(content['views'])
   result.views = __parse_tag_views(content['views'], result.intrinsics, result.extrinsics)
-  result.structure = __parse_tag_structure(content['structure'], result.views)
+  if load_structure:
+    result.structure = __parse_tag_structure(content['structure'], result.views)
 
-  for landmark in result.structure.values():
-    for view in landmark.observations:
-      view.observations[landmark] = landmark.observations[view]
+    for landmark in result.structure.values():
+      for view in landmark.observations:
+        view.observations[landmark] = landmark.observations[view]
 
   return result
 
-def load_sfm_data(path):
+def load_sfm_data(path, load_structure=True):
   path = Path(path)
   if path.suffix == '.json':
     with path.open('r') as f:
-      return load_openmvg_sfm_data(f)
+      return load_openmvg_sfm_data(f, load_structure)
   elif path.suffix == '.bson':
     with path.open('rb') as f:
-      return load_tag_sfm_data(f)
+      return load_tag_sfm_data(f, load_structure)
   else:
     raise RuntimeError('Unrecognized SfM file {}'.format(path))
 
