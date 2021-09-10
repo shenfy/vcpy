@@ -196,7 +196,11 @@ _PROPERTY_TO_ATTRIB = {
   ('uint8', 'red'): (
     VertexAttribute.COLOR,
     (('uint8', 'red'), ('uint8', 'green'), ('uint8', 'blue'))
-  )
+  ),
+  ('uchar', 'red'): (
+    VertexAttribute.COLOR,
+    (('uchar', 'red'), ('uchar', 'green'), ('uchar', 'blue'))
+  ),
 }
 
 def _collect_vertex_attributes(element):
