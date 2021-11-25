@@ -1,9 +1,14 @@
 import numpy as np
 import random
 
+# Raise this exception to tell RANSAC it has selected a degenerate model
+# and should try another sample.
+class DegenerateModelError(RuntimeError):
+  pass
+
 def ransac_fit(samples, min_samples, max_iterations, inlier_threshold,
   fitter, cost_func, thresh_func, early_term_func):
-  
+
   # samples: array of [k0, n], where n is the number of samples
   num_samples = samples.shape[-1]
 
@@ -13,13 +18,16 @@ def ransac_fit(samples, min_samples, max_iterations, inlier_threshold,
   result = None
 
   while iteration < max_iterations:
-    
+
     # select min sample number of random samples
     sample_ids = random.sample(range(num_samples), min_samples)
     maybe_inliers = samples[:, sample_ids]
 
     # fit model to samples
-    maybe_model = fitter(maybe_inliers)
+    try:
+      maybe_model = fitter(maybe_inliers)
+    except DegenerateModelError:
+      continue
 
     # calc inlier percentage
     errs = cost_func(maybe_model, samples)
@@ -45,6 +53,3 @@ def ransac_fit(samples, min_samples, max_iterations, inlier_threshold,
     iteration += 1
 
   return result
-
-if __name__ == '__main__':
-  pass
