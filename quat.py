@@ -1,3 +1,4 @@
+from itertools import combinations_with_replacement
 from numpy import *
 
 class Quat:
@@ -24,6 +25,10 @@ class Quat:
   @classmethod
   def z_rotation(cls, angle):
     return Quat(array([cos(angle / 2), 0, 0, sin(angle / 2)]))
+
+  @classmethod
+  def axis_angle(cls, axis, angle):
+    return Quat(array([cos(angle * 0.5), axis * sin(angle * 0.5)]))
 
   @classmethod
   def scaled(cls, q, s):
@@ -62,6 +67,12 @@ class Quat:
     result.set_axis(v * self.v[0] + u * other.v[0] + cross(u, v))
     return result
 
+  def __pow__(self, power):
+    k = self.v[1:]
+    nk = sqrt(dot(k, k))
+    theta = arctan2(nk, self.v[0])
+    return Quat(hstack((cos(theta * power), sin(theta * power) / nk * k)))
+
   def scale(self, s):
     self.v *= s
 
@@ -79,7 +90,7 @@ class Quat:
     r = identity(4)
     n = dot(q.v, q.v)
     two_over_n = 2.0 / n
-    
+
     r[0, 0] -= (q.v[2] * q.v[2] + q.v[3] * q.v[3]) * two_over_n;
     r[0, 1] += (q.v[1] * q.v[2] - q.v[0] * q.v[3]) * two_over_n;
     r[0, 2] += (q.v[1] * q.v[3] + q.v[2] * q.v[0]) * two_over_n;

@@ -1,15 +1,12 @@
 import numpy as np
-from numba import njit
 
 # 3d math helper
-@njit
 def normalize(v):
     m = np.linalg.norm(v)
     if m == 0:
         return v
     return v / m
 
-@njit
 def translate(xyz):
     x, y, z = xyz
     return np.array([[1.0, 0.0, 0.0, x],
@@ -17,7 +14,6 @@ def translate(xyz):
                   [0.0, 0.0, 1.0, z],
                   [0.0, 0.0, 0.0, 1.0]])
 
-@njit
 def scale(xyz):
     x, y, z = xyz
     return np.array([[x, 0.0, 0.0, 0.0],
@@ -25,7 +21,6 @@ def scale(xyz):
                   [0.0, 0.0, z, 0.0],
                   [0.0, 0.0, 0.0, 1.0]])
 
-@njit
 def gl_lookat(origin, target, up):
     F = target[:3] - origin[:3]
     f = normalize(F)
@@ -37,7 +32,6 @@ def gl_lookat(origin, target, up):
     T = translate(-origin[:3])
     return np.dot(M, T)
 
-@njit
 def gl_frustum(left, right, bottom, top, near, far):
     inv_fmn = 1.0 / (far - near)
     inv_tmb = 1.0 / (top - bottom)
@@ -49,7 +43,6 @@ def gl_frustum(left, right, bottom, top, near, far):
         [0.0, 0.0, -(far + near) * inv_fmn, -2 * far * near * inv_fmn],
         [0.0, 0.0, -1.0, 0.0]])
 
-@njit
 def mitsuba_frustum(left, right, bottom, top, near, far):
     inv_fmn = 1.0 / (far - near)
     inv_tmb = 1.0 / (top - bottom)
@@ -61,7 +54,6 @@ def mitsuba_frustum(left, right, bottom, top, near, far):
         [0.0, 0.0, far * inv_fmn, -far * near * inv_fmn],
         [0.0, 0.0, 1.0, 0.0]])
 
-@njit
 def gl_perspective(fov, aspect_ratio, near, far):
     recip = 1.0 / (near - far)
     cotan = 1.0 / np.tan(np.deg2rad(fov / 2.0))
@@ -72,7 +64,6 @@ def gl_perspective(fov, aspect_ratio, near, far):
         [0.0, 0.0, (near + far) * recip, 2 * far * near * recip],
         [0.0, 0.0, -1.0, 0.0]])
 
-@njit
 def mitsuba_perspective(fov, near, far):
     recip = 1.0 / (far - near)
     cotan = 1.0 / np.tan(np.deg2rad(fov / 2.0))
@@ -83,7 +74,6 @@ def mitsuba_perspective(fov, near, far):
         [0.0, 0.0, far * recip, -far * near * recip],
         [0.0, 0.0, 1.0, 0.0]])
 
-@njit
 def gl_viewport(width, height):
     return np.array([
         [width / 2, 0.0, 0.0, (width - 1) / 2],
@@ -91,11 +81,9 @@ def gl_viewport(width, height):
         [0.0, 0.0, 0.5, 0.5],
         [0.0, 0.0, 0.0, 1.0]])
 
-@njit
 def v3v4(v3, w):
     return np.array([v3[0], v3[1], v3[2], w])
 
-@njit
 def rotation_from_normal(z):
     x = np.array([1.0, 0.0, 0.0], dtype=z.dtype)
     if np.dot(x, z) > 0.8:
